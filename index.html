@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnimeRater</title>
+    <script src="Script/module.js" type="module"></script>
+    <link rel="stylesheet" href="/style/style.css">
+</head>
+
+<body>
+    <nav>
+
+    </nav>
+    <div class="column" id="enter" >
+        <label for="username">Nombre:</label>
+        <input type="text" id="username">
+        <label for="profile">Foto de perfil:</label>
+        <input type="text" name="profile" id="profile_pic">
+        <button id="submit">Entrar</button>
+    </div>
+    <div class="wrapper">
+        <div class="display">
+            <div style="text-align: center;">
+                Opening
+            </div>
+            <video src="https://v.animethemes.moe/GaoGaiGarFinal-ED1.webm" id="op-ed-player"
+            height="400" width="400" controls></video>
+            <div>
+                <div>Tu nota: </div>
+                <input type="text" name="score" id="score" maxlength="3">
+            </div>
+        </div>
+        <div>
+            <div>Miembros</div>
+            <div class="user" id="user_panel">
+
+            </div>
+            <div>
+                <button>start</button>
+                <button>Next</button>
+                <button id="pause">pause</button>
+            </div>
+        </div>
+
+        <div id="list-wrapper">
+            <div>OP & ED disponibles</div>
+            <div id="list">
+
+            </div>
+            <div id="selector">
+
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
