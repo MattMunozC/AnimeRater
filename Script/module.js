@@ -4,14 +4,6 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.11.0/firebas
 
 import { getDatabase,onValue, ref, set, get,child} from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js"
 
-function fileToBinary(arrayBuffer) {
-    const byteArray = new Uint8Array(arrayBuffer);
-    let binaryContent = '';
-    for (let i = 0; i < byteArray.length; i++) {
-        binaryContent += byteArray[i].toString(2).padStart(8, '0') + ' ';
-    }
-    return binaryContent;
-}
 
 const firebaseConfig = {
 
@@ -50,7 +42,6 @@ function add_user(name,profile,score_value=0){
     let score=document.createElement("div")
     score.innerHTML=`<div class='score'>Nota: </div><div class='score_board' id='${name}'>${score_value}</div>`
     new_user.className="user_position"
-    new_user.id=username
     name_div.innerText=name
     pic.src=profile
     new_user.appendChild(pic)
@@ -59,20 +50,47 @@ function add_user(name,profile,score_value=0){
     panel.appendChild(new_user)
 }
 var username;
-var current_video="https://v.animethemes.moe/InuYasha-ED5.webm";
+var current_video;
+var current_video_nickname;
+var video_player=document.getElementById("op-ed-player")
+get(ref(db,"/status")).then((snapshot)=>{
+    if(snapshot.val()!==null){
+        current_video=snapshot.val().current_video
+        video_player.src=current_video;
+        
+    }
+})
+
+onValue(ref(db,"/status/current_video"),(snapshot)=>{
+    if(snapshot.val()!==null){
+        current_video=snapshot.val()
+        video_player.src=current_video;
+        let video=current_video.split(".")
+        video=video[video.length-2].split("/")
+        video=video[video.length-1]
+        current_video_nickname=video;
+    }
+})
+
 
 let score=document.getElementById("score");
 score.addEventListener("keydown",(event)=>{
     if(event.key=='Enter'){
         let score_value=parseFloat(event.originalTarget.value)
         if(score_value<=10.0 && current_video!==undefined && username!==undefined){
-            let video=current_video.split(".")
-            video=video[video.length-2].split("/")
-            video=video[video.length-1]
-            let reference=ref(db,`/score/"${video}"/${username}`);
+            let reference=ref(db,`/score/${current_video_nickname}/${username}`);
             get(reference).then((snapshot)=>{
                 if(snapshot.val()===null){
                     set(reference,score_value)
+                }
+            })
+            onValue(ref(db,`/score/${video}`),(snapshot)=>{
+                console.log(snapshot.val())
+                if(snapshot.val()!==null){
+                    let users=snapshot.val()
+                    for(let [key, value] of Object.entries(users)){
+                        document.getElementById(key).innerText=value
+                    }
                 }
             })
             let my_score=document.getElementById(username)
@@ -103,30 +121,61 @@ submit.addEventListener("click",(event)=>{
     username=name.value;
     document.getElementById("enter").style="display:none"
     let reference=ref(db, `/participant/${username}`);
-    
-    set(reference,{
-        "profile_pic":profile.value}
-    )
+    get(ref(db,"/status/total_player")).then((snapshot)=>{
+        if(snapshot.val()!==null){
+            get(ref(db,"/participant/")).then((participant)=>{
+                let obj=participant.val()
+                if(!Object.keys(obj).includes(username)){
+                    set(ref(db,"/status/total_player"),snapshot.val()+1)
+                    set(reference,{
+                        "profile_pic":profile.value}
+                    )
+                }
+            })
+            
+        }else{
+            set(ref(db,"/status/total_player"),1)
+            set(reference,{
+                "profile_pic":profile.value}
+            )
+            set(ref(db,"/status/leader"),username);
+        }
+        
+    })
+    set(ref(db,`/status/start/${username}`),false)
+        
+
 })
 
 
+//CHECK ON PARTICIPANTS
 onValue(ref(db, `/participant/`),(snapshot)=>{
     let users=snapshot.val()
     if (users!==null){
         document.getElementById("user_panel").innerHTML="";
         for(let [key, value] of Object.entries(users)){
-            
             add_user(key,value.profile_pic)
         }
     }
 
 })
 
+
+//CHECK ON SCORES
+onValue(ref(db,"/score"),(snapshot)=>{
+    if(current_video && snapshot.val()!==null){
+        let scores=snapshot.val()[current_video_nickname]
+        for(let [key, value] of Object.entries(scores)){
+            let user=document.getElementById(key)
+            user.innerText=value
+        }
+    }
+})
+
 for(let i=1;i<176;i++){
     let new_number=document.createElement("div")
     new_number.innerText=i
     new_number.addEventListener("click",()=>{
-        
         getElements(`https://api.animethemes.moe/video?page%5Bsize%5D=100&page%5Bnumber%5D=${i}`)
     })
     document.getElementById("selector").appendChild(new_number)
@@ -152,14 +201,17 @@ function getElements(url){
                 div.addEventListener("click",(event)=>{
                     let reference=ref(db,"/queue")
                     get(reference).then((snapshot)=>{
-                        if(snapshot.val()===null){
-                            set(reference,[event.originalTarget.attributes.link.nodeValue])
+                        if(username){
+                            if(snapshot.val()===null){
+                                set(reference,[event.originalTarget.attributes.link.nodeValue])
+                            }
+                            else{
+                                let queue=snapshot.val()
+                                queue.push(event.originalTarget.attributes.link.nodeValue)
+                                set(reference,queue)
+                            }
                         }
-                        else{
-                            let queue=snapshot.val()
-                            queue.push(event.originalTarget.attributes.link.nodeValue)
-                            set(reference,queue)
-                        }
+
 
                     })
 
@@ -184,14 +236,112 @@ pause.addEventListener("click",()=>{
 
 onValue(ref(db, `/controller/`),(snapshot)=>{
     let controller=snapshot.val()
-    let video=document.getElementById("op-ed-player")
     if (controller!==null){
-        console.log(controller.pause)
         if(controller.pause){
-            console.log(video)
-            video.pause()
-            console.log("aqui")
+            video_player.pause()
+        }else{
+            video_player.play()
         }
     }
 
+})
+
+function AND_gate(list){
+    for(let element of list){
+        console.log(element)
+        if(element!=true){
+            return false;
+        }
+    }
+    return true;
+}
+
+let start=document.getElementById("start")
+start.addEventListener("click",()=>{
+    let reference=ref(db,`/status/start/${username}`)
+    set(reference,true)
+    onValue(ref(db,'/status/start'),(snapshot)=>{
+        let obj=snapshot.val()
+        let values=Object.values(obj)
+        get(ref(db,'/status/total_player/')).then((total_player)=>{
+            console.log("aqui owo")
+            console.log(AND_gate(values))
+            console.log(values.length)
+            console.log(total_player.val())
+            console.log(total_player.val())
+            if(AND_gate(values) && values.length==total_player.val() && total_player.val()>1){
+                console.log("aqui")
+                get(ref(db,"/status/leader")).then((leader)=>{
+                    get(ref(db,"/queue")).then((queue)=>{
+                        if(username==leader.val()){
+                            if (queue.val()!==null){
+                                let new_queue=queue.val();
+                                console.log(queue)
+                                set(ref(db,"/status/current_video"),new_queue[0])
+                                new_queue.shift();
+                                set(ref(db,"/queue"),new_queue)
+                                set(ref(db,"/controller/pause"),false);
+                            }
+
+                        }
+                    })
+
+                })
+            }
+        })
+        
+       
+    })
+})
+
+onValue(ref(db,"/status/start_player"),(snapshot)=>{
+    if(snapshot.val()!==null){
+        if(snapshot.val()){
+            video_player.play()
+        }
+    }
+})
+
+let queue_see=document.getElementById("see-queue")
+queue_see.addEventListener("click",()=>{
+    document.getElementById("queue-wrapper").style=""
+    let queue_list=document.getElementById("queue")
+    get(ref(db,"/queue")).then((snapshot)=>{
+        if(snapshot.val()!==null){
+            queue_list.innerHTML=""
+            for(let element of snapshot.val()){
+                let new_div=document.createElement("div")
+                new_div.innerText=element;
+                new_div.className="queue-element";
+                queue_list.appendChild(new_div);
+            }
+        }
+    })
+})
+
+let queue_button=document.getElementById("close-queue");
+queue_button.addEventListener("click",()=>{
+    document.getElementById('queue-wrapper').style='display:none;'
+})
+
+let next=document.getElementById("next")
+next.addEventListener("click",()=>{
+    set(ref(db,`/status/next/${username}`),true)
+    get(ref(db,'/status/leader')).then((snapshot)=>{
+        if(snapshot.val()!==null){
+            if(snapshot.val()==username){
+                get(ref(db,'/queue')).then((queue)=>{
+                    if (queue.val()!==null){
+                        let new_queue=queue.val();
+                        console.log(queue)
+                        set(ref(db,"/status/current_video"),new_queue[0])
+                        new_queue.shift();
+                        set(ref(db,"/queue"),new_queue)
+                        set(ref(db,"/status/start_player"),true);
+                    }
+                })
+
+            }
+        }
+    })
 })

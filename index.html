@@ -11,8 +11,16 @@
 
 <body>
     <nav>
-
+        <div>AnimeRater</div>
+        <div id="see-queue">Ver Cola</div>
     </nav>
+    <div id="queue-wrapper" style="display: none;">
+        <div>Cola:</div>
+        <div id="queue">
+        </div>
+        <button id="close-queue">Cerrar</button>
+    </div>
+
     <div class="column" id="enter" >
         <label for="username">Nombre:</label>
         <input type="text" id="username">
@@ -25,7 +33,7 @@
             <div style="text-align: center;">
                 Opening
             </div>
-            <video src="https://v.animethemes.moe/GaoGaiGarFinal-ED1.webm" id="op-ed-player"
+            <video  id="op-ed-player"
             height="400" width="400" controls></video>
             <div>
                 <div>Tu nota: </div>
@@ -38,8 +46,8 @@
 
             </div>
             <div>
-                <button>start</button>
-                <button>Next</button>
+                <button id="start">start</button>
+                <button id="next">Next</button>
                 <button id="pause">pause</button>
             </div>
         </div>

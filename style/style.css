@@ -90,10 +90,25 @@ img{
 
 nav{
     height: 30px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+nav div{
+    margin: 10px;
 }
 input#score{
     height: 100px;
     width: 100px;
     font-size: 50px;
     text-align: center;
+}
+
+#queue-wrapper{
+    position: fixed;
+    background-color: black;
+    padding: 10px 20px 100px;
+    top: 10vh;
+    left:70vw;
+    border-radius: 10px;
 }
