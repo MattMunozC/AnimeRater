@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Header from "../components/Header";
 import RatingPanel from "../components/RatingPanel";
 import ThemeQueue from "../components/ThemeQueue";
 import VideoPlayer from "../components/VideoPlayer";
+import { CURATED_THEME_NAMES } from "../data/curatedThemes";
 import resolvedCuratedThemes from "../data/resolvedCuratedThemes.json";
 import useLocalDiscardedThemes from "../hooks/useLocalDiscardedThemes";
 import useLocalQueue from "../hooks/useLocalQueue";
@@ -13,6 +14,18 @@ import useLocalRatings, { type StoredRating } from "../hooks/useLocalRatings";
 import type { AnimeVideo } from "../providers/AnimeCatalogProvider";
 
 const curatedVideos = resolvedCuratedThemes as unknown as AnimeVideo[];
+
+function subscribeToHydration() {
+  return () => {};
+}
+
+function getClientHydrationSnapshot() {
+  return true;
+}
+
+function getServerHydrationSnapshot() {
+  return false;
+}
 
 function titleFromFilename(filename: string) {
   const stem = filename.replace(/\.[^/.]+$/, "").replace(/[-_.]+/g, " ");
@@ -46,6 +59,17 @@ function TrashIcon() {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
+function downloadText(text: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function downloadRatings(ratings: StoredRating[]) {
   const text = ratings
     .map((rating) => {
@@ -55,14 +79,25 @@ function downloadRatings(ratings: StoredRating[]) {
       return `${rating.animeName ?? titleFromFilename(rating.filename)} ${theme} - ${rating.score.toFixed(1)}`;
     })
     .join("\n");
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `anime-rater-scores-${new Date().toISOString().slice(0, 10)}.txt`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadText(text, `anime-rater-scores-${new Date().toISOString().slice(0, 10)}.txt`);
+}
+
+function downloadFormattedList(ratings: Record<string, StoredRating>) {
+  const entries = CURATED_THEME_NAMES.map((originalName, index) => {
+    const video = curatedVideos[index];
+    const rating = video
+      ? ratings[String(video.id)] ?? (video.sourceVideoId ? ratings[String(video.sourceVideoId)] : undefined)
+      : undefined;
+    return `${originalName} - ${rating ? rating.score.toFixed(1) : "Unrated"}`;
+  });
+  const text = [
+    "LISTADO DE OPENINGS Y ENDINGS",
+    `Total: ${CURATED_THEME_NAMES.length} archivos`,
+    "============================================================",
+    ...entries,
+  ].join("\n");
+
+  downloadText(text, `anime-rater-full-list-${new Date().toISOString().slice(0, 10)}.txt`);
 }
 
 export default function RateExperience() {
@@ -70,6 +105,11 @@ export default function RateExperience() {
   const { ratings, ratingList, saveRating, clearRatings } = useLocalRatings();
   const [ratingDrafts, setRatingDrafts] = useState<Record<string, number>>({});
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const hasMounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const { current, currentIndex, setCurrent } = useLocalRatedVideo(videos, videos[0]);
   const ratingKey = String(current.id);
   const persistedRating = ratings[ratingKey]
@@ -207,8 +247,9 @@ export default function RateExperience() {
         <footer className="rate-footer">
           <span>{ratingList.length} ratings saved · {videos.length} themes in this list</span>
           <div className="rate-footer-actions">
-            <button type="button" disabled={!ratingList.length} onClick={() => downloadRatings(ratingList)}><DownloadIcon /> Download ratings</button>
-            <button className="delete-ratings-button" type="button" disabled={!ratingList.length} onClick={() => setConfirmClearOpen(true)} aria-label="Delete all saved ratings"><TrashIcon /></button>
+            <button type="button" disabled={!hasMounted || !ratingList.length} onClick={() => downloadRatings(ratingList)}><DownloadIcon /> Download ratings</button>
+            <button type="button" disabled={!hasMounted} onClick={() => downloadFormattedList(ratings)}><DownloadIcon /> Full formatted list</button>
+            <button className="delete-ratings-button" type="button" disabled={!hasMounted || !ratingList.length} onClick={() => setConfirmClearOpen(true)} aria-label="Delete all saved ratings"><TrashIcon /></button>
             <button type="button" onClick={showNext}>Next theme <ArrowIcon /></button>
           </div>
         </footer>

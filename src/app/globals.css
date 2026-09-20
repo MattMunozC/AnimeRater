@@ -309,7 +309,7 @@ button { color:inherit; }
 .score-card-compact .room-average { margin-top:10px; padding-top:10px; font-size:8px; }
 .score-card-compact .room-average strong { font-size:12px; }
 .rate-footer { display:flex; align-items:center; justify-content:space-between; padding:18px 2px 0; color:#625e5a; font:600 9px/1 var(--font-geist-mono); letter-spacing:.08em; text-transform:uppercase; }
-.rate-footer-actions { display:flex; align-items:center; gap:16px; }
+.rate-footer-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px 16px; }
 .rate-footer button { display:flex; align-items:center; gap:8px; border:0; padding:8px 0; background:transparent; color:#aaa49f; cursor:pointer; text-transform:uppercase; }
 .rate-footer button:hover { color:var(--orange); }
 .rate-footer button:disabled { opacity:.3; cursor:not-allowed; }
