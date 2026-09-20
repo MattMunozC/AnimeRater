@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 type HeaderProps = {
-  activePage?: "room" | "discover" | "history";
+  activePage?: "room" | "rate" | "discover" | "history";
   queueCount?: number;
   onQueueToggle?: () => void;
 };
@@ -40,6 +40,7 @@ export default function Header({
 
       <nav className="nav-links" aria-label="Primary navigation">
         <Link className={activePage === "room" ? "active" : ""} href="/#room">Room</Link>
+        <Link className={activePage === "rate" ? "active" : ""} href="/rate">Rate</Link>
         <Link className={activePage === "discover" ? "active" : ""} href="/discover">Discover</Link>
         <Link className={activePage === "history" ? "active" : ""} href="/#history">History</Link>
       </nav>

@@ -1,8 +1,13 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import Header from "./components/Header";
+import RatingPanel from "./components/RatingPanel";
 import VideoPlayer from "./components/VideoPlayer";
+import useLocalQueue from "./hooks/useLocalQueue";
+import useLocalRatedVideo from "./hooks/useLocalRatedVideo";
+import useLocalRatings from "./hooks/useLocalRatings";
+import { matchCuratedThemes } from "./lib/curatedQueue";
 import { useAnimeCatalog, type AnimeVideo } from "./providers/AnimeCatalogProvider";
 
 type IconProps = { className?: string };
@@ -57,14 +62,30 @@ const demoVideos: AnimeVideo[] = [
 export default function AnimeRater() {
   const { videos: catalogVideos, status } = useAnimeCatalog();
   const videos = catalogVideos.length ? catalogVideos : demoVideos;
-  const [selectedOverride, setSelected] = useState<AnimeVideo | null>(null);
-  const [queueOverride, setQueue] = useState<AnimeVideo[] | null>(null);
-  const selected = selectedOverride ?? videos[0] ?? demoVideos[0];
-  const queue = queueOverride ?? videos.slice(1, 4);
+  const { current: selected, setCurrent: setSelected } = useLocalRatedVideo(videos, demoVideos[0]);
+  const curatedVideos = useMemo(
+    () => catalogVideos.length ? matchCuratedThemes(catalogVideos).matches : [demoVideos[0]],
+    [catalogVideos],
+  );
+  const curatedBySourceId = useMemo(
+    () => new Map(curatedVideos.map((video) => [video.sourceVideoId ?? video.id, video])),
+    [curatedVideos],
+  );
+  const allowedQueueIds = useMemo(() => new Set(curatedVideos.map((video) => video.id)), [curatedVideos]);
+  const defaultQueue = useMemo(() => curatedVideos.filter((video) => video.id !== selected.id), [curatedVideos, selected.id]);
+  const { queue: storedQueue, setQueue } = useLocalQueue(defaultQueue);
+  const queue = useMemo(
+    () => storedQueue.filter((video) => allowedQueueIds.has(video.id) && video.id !== selected.id),
+    [allowedQueueIds, selected.id, storedQueue],
+  );
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "op" | "ed">("all");
-  const [rating, setRating] = useState(8.6);
-  const [savedRating, setSavedRating] = useState<number | null>(null);
+  const { ratings, saveRating } = useLocalRatings();
+  const [ratingDrafts, setRatingDrafts] = useState<Record<string, number>>({});
+  const ratingKey = String(selected.id);
+  const hasRatingDraft = Object.hasOwn(ratingDrafts, ratingKey);
+  const rating = ratingDrafts[ratingKey] ?? ratings[ratingKey]?.score ?? 8.6;
+  const savedRating = hasRatingDraft ? null : ratings[ratingKey]?.score ?? null;
   const [libraryOpen, setLibraryOpen] = useState(true);
   const loading = status === "loading";
 
@@ -78,9 +99,12 @@ export default function AnimeRater() {
   }, [videos, query, filter]);
 
   function addToQueue(video: AnimeVideo) {
-    setQueue((currentOverride) => {
-      const current = currentOverride ?? queue;
-      return current.some((queued) => queued.id === video.id) || selected.id === video.id ? current : [...current, video];
+    const curatedVideo = curatedBySourceId.get(video.id);
+    if (!curatedVideo) return;
+    setQueue((current) => {
+      return current.some((queued) => queued.id === curatedVideo.id) || selected.id === video.id
+        ? current
+        : [...current, curatedVideo];
     });
   }
 
@@ -89,7 +113,6 @@ export default function AnimeRater() {
     if (!next) return;
     setSelected(next);
     setQueue(rest);
-    setSavedRating(null);
   }
 
   return (
@@ -107,25 +130,33 @@ export default function AnimeRater() {
         <section className="stage-grid">
           <article className="player-card">
             <div className="video-wrap">
-              {selected.link ? <VideoPlayer key={selected.link} src={selected.link} title={titleFromFilename(selected.filename)} autoPlay /> : (
+              {selected.link ? <VideoPlayer key={selected.link} src={selected.link} title={selected.animeName ?? titleFromFilename(selected.filename)} autoPlay /> : (
                 <div className="demo-art" role="img" aria-label="Abstract anime theme backdrop"><div className="sun" /><div className="speed-lines" /><div className="hero-silhouette" /><span className="demo-label">Live preview</span><button className="big-play" aria-label="Play preview"><PlayIcon /></button></div>
               )}
               <div className="now-playing-pill"><span /> Now playing</div><div className="video-count">01 / {String(Math.max(queue.length + 1, 1)).padStart(2, "0")}</div>
             </div>
             <div className="player-details">
-              <div className="track-copy"><p>{themeLabel(selected)} <span>•</span> {selected.releasePeriod ?? selected.year ?? "Release unknown"}</p><h2>{titleFromFilename(selected.filename)}</h2><span className="track-name">{selected.filename.replace(/\.[^/.]+$/, "").split("-").slice(2).join(" · ") || "Anime theme"}</span></div>
+              <div className="track-copy"><p>{themeLabel(selected)} <span>•</span> {selected.releasePeriod ?? selected.year ?? "Release unknown"}</p><h2>{selected.animeName ?? titleFromFilename(selected.filename)}</h2><span className="track-name">{selected.songTitle ?? (selected.filename.replace(/\.[^/.]+$/, "").split("-").slice(2).join(" · ") || "Anime theme")}</span></div>
               <button className="next-button" onClick={playNext} disabled={!queue.length}>Next up <ChevronIcon /></button>
             </div>
           </article>
 
-          <aside className="score-card">
-            <div className="score-card-head"><div><p className="eyebrow">Your rating</p><h2>How did it hit?</h2></div><span className="rating-status">{savedRating === null ? "Unrated" : "Rated"}</span></div>
-            <div className="score-display"><strong>{rating.toFixed(1)}</strong><span>/ 10</span></div>
-            <input className="rating-range" type="range" min="0" max="10" step="0.1" value={rating} aria-label="Rating from zero to ten" style={{ "--rating": `${rating * 10}%` } as CSSProperties} onChange={(event) => { setRating(Number(event.target.value)); setSavedRating(null); }} />
-            <div className="range-labels"><span>Not for me</span><span>On repeat</span></div>
-            <button className="submit-score" onClick={() => setSavedRating(rating)}>{savedRating === null ? "Lock in rating" : `Rating saved · ${savedRating.toFixed(1)}`}</button>
-            <div className="room-average"><span>Room average</span><div><strong>8.9</strong><span className="stars">★★★★<i>★</i></span></div></div>
-          </aside>
+          <RatingPanel
+            rating={rating}
+            savedRating={savedRating}
+            averageLabel="Room average"
+            onRatingChange={(nextRating) => {
+              setRatingDrafts((drafts) => ({ ...drafts, [ratingKey]: nextRating }));
+            }}
+            onSubmit={() => {
+              saveRating(selected, rating);
+              setRatingDrafts((drafts) => {
+                const nextDrafts = { ...drafts };
+                delete nextDrafts[ratingKey];
+                return nextDrafts;
+              });
+            }}
+          />
         </section>
 
         <section className="social-grid" id="history">
@@ -140,7 +171,7 @@ export default function AnimeRater() {
           <div className="panel queue-panel">
             <div className="panel-title"><div><p className="eyebrow">Coming up</p><h2>Room queue</h2></div><button onClick={() => setLibraryOpen(true)}>Edit queue</button></div>
             <div className="queue-list">
-              {queue.slice(0, 3).map((video, index) => <button className="queue-item" key={`${video.id}-${index}`} onClick={() => { setSelected(video); setQueue((items) => (items ?? queue).filter((_, itemIndex) => itemIndex !== index)); }}><span className={`queue-art ${accentFor(index)}`}><PlayIcon /></span><span><strong>{titleFromFilename(video.filename)}</strong><small>{themeLabel(video)}</small></span><b>{String(index + 2).padStart(2, "0")}</b></button>)}
+              {queue.slice(0, 3).map((video, index) => <button className="queue-item" key={`${video.id}-${index}`} onClick={() => { setSelected(video); setQueue((items) => items.filter((item) => item.id !== video.id)); }}><span className={`queue-art ${accentFor(index)}`}><PlayIcon /></span><span><strong>{video.animeName ?? titleFromFilename(video.filename)}</strong><small>{themeLabel(video)}</small></span><b>{String(index + 2).padStart(2, "0")}</b></button>)}
               {!queue.length && <p className="empty-queue">The queue is empty. Add a theme from the library.</p>}
             </div>
           </div>
@@ -157,8 +188,10 @@ export default function AnimeRater() {
           {loading ? <div className="loading-grid" aria-label="Loading anime themes">{Array.from({ length: 6 }).map((_, index) => <span key={index} />)}</div> : (
             <div className="theme-grid">
               {filteredVideos.slice(0, 10).map((video, index) => {
-                const queued = queue.some((item) => item.id === video.id) || selected.id === video.id;
-                return <article className="theme-card" key={video.id}><button className={`theme-art ${accentFor(index + 1)}`} onClick={() => setSelected(video)} aria-label={`Play ${titleFromFilename(video.filename)}`}><span className="theme-type">{themeLabel(video)}</span><PlayIcon /></button><div className="theme-info"><div><strong>{titleFromFilename(video.filename)}</strong><span>{video.releasePeriod ?? video.year ?? "Release unknown"} · {video.resolution ? `${video.resolution}p` : "Anime theme"}</span></div><button className={queued ? "added" : ""} onClick={() => addToQueue(video)} aria-label={queued ? "Already in queue" : "Add to queue"}>{queued ? "✓" : <PlusIcon />}</button></div></article>;
+                const curatedVideo = curatedBySourceId.get(video.id);
+                const canQueue = Boolean(curatedVideo);
+                const queued = queue.some((item) => item.id === curatedVideo?.id) || selected.id === video.id;
+                return <article className="theme-card" key={video.id}><button className={`theme-art ${accentFor(index + 1)}`} onClick={() => setSelected(video)} aria-label={`Play ${video.animeName ?? titleFromFilename(video.filename)}`}><span className="theme-type">{themeLabel(video)}</span><PlayIcon /></button><div className="theme-info"><div><strong>{video.animeName ?? titleFromFilename(video.filename)}</strong><span>{video.releasePeriod ?? video.year ?? "Release unknown"} · {video.resolution ? `${video.resolution}p` : "Anime theme"}</span></div>{canQueue && <button className={queued ? "added" : ""} onClick={() => addToQueue(video)} aria-label={queued ? "Already in queue" : "Add to queue"}>{queued ? "✓" : <PlusIcon />}</button>}</div></article>;
               })}
               {!filteredVideos.length && <p className="no-results">No themes match that search.</p>}
             </div>

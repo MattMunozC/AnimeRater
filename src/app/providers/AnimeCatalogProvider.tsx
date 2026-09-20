@@ -21,6 +21,11 @@ export type AnimeVideo = {
   releasePeriod?: string | null;
   themeType: "OP" | "ED" | null;
   themeNumber: number | null;
+  animeId?: number;
+  animeName?: string;
+  animeSynonyms?: string[];
+  songTitle?: string | null;
+  sourceVideoId?: number;
   [key: string]: unknown;
 };
 
@@ -42,7 +47,7 @@ type StoredCatalog = {
 const DATABASE_NAME = "anime-rater";
 const DATABASE_VERSION = 1;
 const STORE_NAME = "catalogs";
-const CATALOG_KEY = "anime-videos-v1";
+const CATALOG_KEY = "anime-videos-v2";
 const MAX_CACHE_AGE = 86_400_000;
 
 const AnimeCatalogContext = createContext<AnimeCatalogContextValue | null>(null);
@@ -61,10 +66,10 @@ function normalizeVideo(video: AnimeVideo) {
 
   return {
     ...video,
-    year: parsedYear,
-    releasePeriod,
-    themeType: themeMatch ? themeMatch[1].toUpperCase() as "OP" | "ED" : null,
-    themeNumber: themeMatch ? Number(themeMatch[2]) : null,
+    year: video.year ?? parsedYear,
+    releasePeriod: video.releasePeriod ?? releasePeriod,
+    themeType: video.themeType ?? (themeMatch ? themeMatch[1].toUpperCase() as "OP" | "ED" : null),
+    themeNumber: video.themeNumber ?? (themeMatch ? Number(themeMatch[2]) : null),
   } satisfies AnimeVideo;
 }
 
