@@ -42,6 +42,7 @@ export default function VideoPlayer({
         muted={muted}
         playsInline
         preload="metadata"
+        tabIndex={-1}
       />
 
       <MediaControlBar className="anime-media-controls">

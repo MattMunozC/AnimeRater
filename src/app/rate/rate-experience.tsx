@@ -6,6 +6,7 @@ import RatingPanel from "../components/RatingPanel";
 import ThemeQueue from "../components/ThemeQueue";
 import VideoPlayer from "../components/VideoPlayer";
 import resolvedCuratedThemes from "../data/resolvedCuratedThemes.json";
+import useLocalDiscardedThemes from "../hooks/useLocalDiscardedThemes";
 import useLocalQueue from "../hooks/useLocalQueue";
 import useLocalRatedVideo from "../hooks/useLocalRatedVideo";
 import useLocalRatings, { type StoredRating } from "../hooks/useLocalRatings";
@@ -78,6 +79,7 @@ export default function RateExperience() {
   const savedRating = hasRatingDraft ? null : persistedRating?.score ?? null;
   const defaultQueue = useMemo(() => videos, [videos]);
   const { queue: storedQueue, setQueue } = useLocalQueue(defaultQueue);
+  const { discardedIds, discardTheme } = useLocalDiscardedThemes();
   const curatedIds = useMemo(() => new Set(videos.map((video) => video.id)), [videos]);
   const queue = useMemo(
     () => {
@@ -85,18 +87,18 @@ export default function RateExperience() {
       const storedUnrated = storedQueue.filter((video) => {
         const alreadyRated = ratings[String(video.id)]
           || (video.sourceVideoId ? ratings[String(video.sourceVideoId)] : undefined);
-        if (!curatedIds.has(video.id) || alreadyRated || seen.has(video.id)) return false;
+        if (!curatedIds.has(video.id) || discardedIds.has(video.id) || alreadyRated || seen.has(video.id)) return false;
         seen.add(video.id);
         return true;
       });
       const missingUnrated = videos.filter((video) => {
         const alreadyRated = ratings[String(video.id)]
           || (video.sourceVideoId ? ratings[String(video.sourceVideoId)] : undefined);
-        return !alreadyRated && !seen.has(video.id);
+        return !discardedIds.has(video.id) && !alreadyRated && !seen.has(video.id);
       });
       return [...storedUnrated, ...missingUnrated];
     },
-    [curatedIds, ratings, storedQueue, videos],
+    [curatedIds, discardedIds, ratings, storedQueue, videos],
   );
 
   function selectVideo(video: AnimeVideo) {
@@ -109,6 +111,18 @@ export default function RateExperience() {
     if (!queue.length) return;
     const queueIndex = queue.findIndex((video) => video.id === current.id);
     selectVideo(queue[(queueIndex + 1 + queue.length) % queue.length]);
+  }
+
+  function discardVideo(video: AnimeVideo) {
+    const discardedIndex = queue.findIndex((candidate) => candidate.id === video.id);
+    const remainingQueue = queue.filter((candidate) => candidate.id !== video.id);
+
+    discardTheme(video.id);
+    setQueue(remainingQueue);
+
+    if (video.id === current.id && remainingQueue.length) {
+      selectVideo(remainingQueue[Math.min(Math.max(discardedIndex, 0), remainingQueue.length - 1)]);
+    }
   }
 
   function submitRating() {
@@ -175,6 +189,7 @@ export default function RateExperience() {
               activeId={current.id}
               totalCount={queue.length}
               onSelect={selectVideo}
+              onDiscard={discardVideo}
             />
             <RatingPanel
               key={current.id}

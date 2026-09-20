@@ -5,6 +5,7 @@ import type { AnimeVideo } from "../providers/AnimeCatalogProvider";
 type ThemeQueueProps = {
   items: AnimeVideo[];
   onSelect: (video: AnimeVideo) => void;
+  onDiscard: (video: AnimeVideo) => void;
   activeId?: number;
   totalCount?: number;
 };
@@ -27,9 +28,14 @@ function PlayIcon() {
   return <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.25 5.2c0-1.03 1.14-1.65 2.01-1.1l10.02 6.36a1.3 1.3 0 0 1 0 2.2L10.26 19c-.87.56-2.01-.07-2.01-1.1V5.2Z" /></svg>;
 }
 
+function DiscardIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
+}
+
 export default function ThemeQueue({
   items,
   onSelect,
+  onDiscard,
   activeId,
   totalCount = items.length,
 }: ThemeQueueProps) {
@@ -45,22 +51,35 @@ export default function ThemeQueue({
 
       <div className="rate-queue-list">
         {items.map((video, index) => (
-          <button
+          <div
             className={`rate-queue-item${video.id === activeId ? " active" : ""}`}
-            type="button"
             key={`${video.id}-${index}`}
-            onClick={() => onSelect(video)}
-            aria-current={video.id === activeId ? "true" : undefined}
           >
-            <span className={`rate-queue-art ${accents[index % accents.length]}`}>
-              <PlayIcon />
-            </span>
-            <span className="rate-queue-copy">
-              <strong>{video.animeName ?? titleFromFilename(video.filename)}</strong>
-              <small>{themeLabel(video)} · {video.releasePeriod ?? video.year ?? "Unknown year"}</small>
-            </span>
-            <b>{String(index + 1).padStart(2, "0")}</b>
-          </button>
+            <button
+              className="rate-queue-select"
+              type="button"
+              onClick={() => onSelect(video)}
+              aria-current={video.id === activeId ? "true" : undefined}
+            >
+              <span className={`rate-queue-art ${accents[index % accents.length]}`}>
+                <PlayIcon />
+              </span>
+              <span className="rate-queue-copy">
+                <strong>{video.animeName ?? titleFromFilename(video.filename)}</strong>
+                <small>{themeLabel(video)} · {video.releasePeriod ?? video.year ?? "Unknown year"}</small>
+              </span>
+              <b>{String(index + 1).padStart(2, "0")}</b>
+            </button>
+            <button
+              className="rate-queue-discard"
+              type="button"
+              onClick={() => onDiscard(video)}
+              aria-label={`Discard ${video.animeName ?? titleFromFilename(video.filename)} from queue`}
+              title="Discard from queue"
+            >
+              <DiscardIcon />
+            </button>
+          </div>
         ))}
 
         {!items.length && <p className="rate-queue-empty">Every theme has been rated.</p>}
