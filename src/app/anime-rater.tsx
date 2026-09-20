@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import Header from "./components/Header";
+import VideoPlayer from "./components/VideoPlayer";
 import { useAnimeCatalog, type AnimeVideo } from "./providers/AnimeCatalogProvider";
 
 type IconProps = { className?: string };
@@ -29,10 +30,9 @@ function titleFromFilename(filename: string) {
   return rawTitle.replace(/([a-z])([A-Z])/g, "$1 $2") || "Untitled theme";
 }
 
-function themeFromFilename(filename: string) {
-  const match = filename.match(/(OP|ED)(\d+)?/i);
-  if (!match) return "Theme song";
-  return `${match[1].toUpperCase() === "OP" ? "Opening" : "Ending"}${match[2] ? ` ${match[2]}` : ""}`;
+function themeLabel(video: AnimeVideo) {
+  if (!video.themeType) return "Theme song";
+  return `${video.themeType === "OP" ? "Opening" : "Ending"}${video.themeNumber ? ` ${video.themeNumber}` : ""}`;
 }
 
 function accentFor(index: number) {
@@ -46,12 +46,12 @@ const people = [
 ];
 
 const demoVideos: AnimeVideo[] = [
-  { id: -1, filename: "ChainsawMan-OP1-KICKBACK.webm", link: "" },
-  { id: -2, filename: "JujutsuKaisenS2-OP1-AoNoSumika.webm", link: "" },
-  { id: -3, filename: "Frieren-OP2-Hareru.webm", link: "" },
-  { id: -4, filename: "MobPsycho100S3-OP1-1.webm", link: "" },
-  { id: -5, filename: "BocchiTheRock-ED1-Distortion.webm", link: "" },
-  { id: -6, filename: "CyberpunkEdgerunners-OP1-ThisFffire.webm", link: "" },
+  { id: -1, filename: "ChainsawMan-OP1-KICKBACK.webm", link: "", year: 2022, themeType: "OP", themeNumber: 1 },
+  { id: -2, filename: "JujutsuKaisenS2-OP1-AoNoSumika.webm", link: "", year: 2023, themeType: "OP", themeNumber: 1 },
+  { id: -3, filename: "Frieren-OP2-Hareru.webm", link: "", year: 2024, themeType: "OP", themeNumber: 2 },
+  { id: -4, filename: "MobPsycho100S3-OP1-1.webm", link: "", year: 2022, themeType: "OP", themeNumber: 1 },
+  { id: -5, filename: "BocchiTheRock-ED1-Distortion.webm", link: "", year: 2022, themeType: "ED", themeNumber: 1 },
+  { id: -6, filename: "CyberpunkEdgerunners-OP1-ThisFffire.webm", link: "", year: 2022, themeType: "OP", themeNumber: 1 },
 ];
 
 export default function AnimeRater() {
@@ -72,7 +72,7 @@ export default function AnimeRater() {
     const normalized = query.trim().toLowerCase();
     return videos.filter((video) => {
       const matchesSearch = !normalized || video.filename.toLowerCase().includes(normalized);
-      const marker = video.filename.match(/(?:^|[-_.])(OP|ED)/i)?.[1]?.toLowerCase();
+      const marker = video.themeType?.toLowerCase();
       return matchesSearch && (filter === "all" || marker === filter);
     });
   }, [videos, query, filter]);
@@ -107,13 +107,13 @@ export default function AnimeRater() {
         <section className="stage-grid">
           <article className="player-card">
             <div className="video-wrap">
-              {selected.link ? <video key={selected.link} src={selected.link} controls autoPlay playsInline preload="metadata" /> : (
+              {selected.link ? <VideoPlayer key={selected.link} src={selected.link} title={titleFromFilename(selected.filename)} autoPlay /> : (
                 <div className="demo-art" role="img" aria-label="Abstract anime theme backdrop"><div className="sun" /><div className="speed-lines" /><div className="hero-silhouette" /><span className="demo-label">Live preview</span><button className="big-play" aria-label="Play preview"><PlayIcon /></button></div>
               )}
               <div className="now-playing-pill"><span /> Now playing</div><div className="video-count">01 / {String(Math.max(queue.length + 1, 1)).padStart(2, "0")}</div>
             </div>
             <div className="player-details">
-              <div className="track-copy"><p>{themeFromFilename(selected.filename)} <span>•</span> 2024</p><h2>{titleFromFilename(selected.filename)}</h2><span className="track-name">{selected.filename.replace(/\.[^/.]+$/, "").split("-").slice(2).join(" · ") || "Anime theme"}</span></div>
+              <div className="track-copy"><p>{themeLabel(selected)} <span>•</span> {selected.releasePeriod ?? selected.year ?? "Release unknown"}</p><h2>{titleFromFilename(selected.filename)}</h2><span className="track-name">{selected.filename.replace(/\.[^/.]+$/, "").split("-").slice(2).join(" · ") || "Anime theme"}</span></div>
               <button className="next-button" onClick={playNext} disabled={!queue.length}>Next up <ChevronIcon /></button>
             </div>
           </article>
@@ -140,7 +140,7 @@ export default function AnimeRater() {
           <div className="panel queue-panel">
             <div className="panel-title"><div><p className="eyebrow">Coming up</p><h2>Room queue</h2></div><button onClick={() => setLibraryOpen(true)}>Edit queue</button></div>
             <div className="queue-list">
-              {queue.slice(0, 3).map((video, index) => <button className="queue-item" key={`${video.id}-${index}`} onClick={() => { setSelected(video); setQueue((items) => (items ?? queue).filter((_, itemIndex) => itemIndex !== index)); }}><span className={`queue-art ${accentFor(index)}`}><PlayIcon /></span><span><strong>{titleFromFilename(video.filename)}</strong><small>{themeFromFilename(video.filename)}</small></span><b>{String(index + 2).padStart(2, "0")}</b></button>)}
+              {queue.slice(0, 3).map((video, index) => <button className="queue-item" key={`${video.id}-${index}`} onClick={() => { setSelected(video); setQueue((items) => (items ?? queue).filter((_, itemIndex) => itemIndex !== index)); }}><span className={`queue-art ${accentFor(index)}`}><PlayIcon /></span><span><strong>{titleFromFilename(video.filename)}</strong><small>{themeLabel(video)}</small></span><b>{String(index + 2).padStart(2, "0")}</b></button>)}
               {!queue.length && <p className="empty-queue">The queue is empty. Add a theme from the library.</p>}
             </div>
           </div>
@@ -158,7 +158,7 @@ export default function AnimeRater() {
             <div className="theme-grid">
               {filteredVideos.slice(0, 10).map((video, index) => {
                 const queued = queue.some((item) => item.id === video.id) || selected.id === video.id;
-                return <article className="theme-card" key={video.id}><button className={`theme-art ${accentFor(index + 1)}`} onClick={() => setSelected(video)} aria-label={`Play ${titleFromFilename(video.filename)}`}><span className="theme-type">{themeFromFilename(video.filename)}</span><PlayIcon /></button><div className="theme-info"><div><strong>{titleFromFilename(video.filename)}</strong><span>{video.resolution ? `${video.resolution}p` : "Anime theme"}</span></div><button className={queued ? "added" : ""} onClick={() => addToQueue(video)} aria-label={queued ? "Already in queue" : "Add to queue"}>{queued ? "✓" : <PlusIcon />}</button></div></article>;
+                return <article className="theme-card" key={video.id}><button className={`theme-art ${accentFor(index + 1)}`} onClick={() => setSelected(video)} aria-label={`Play ${titleFromFilename(video.filename)}`}><span className="theme-type">{themeLabel(video)}</span><PlayIcon /></button><div className="theme-info"><div><strong>{titleFromFilename(video.filename)}</strong><span>{video.releasePeriod ?? video.year ?? "Release unknown"} · {video.resolution ? `${video.resolution}p` : "Anime theme"}</span></div><button className={queued ? "added" : ""} onClick={() => addToQueue(video)} aria-label={queued ? "Already in queue" : "Add to queue"}>{queued ? "✓" : <PlusIcon />}</button></div></article>;
               })}
               {!filteredVideos.length && <p className="no-results">No themes match that search.</p>}
             </div>

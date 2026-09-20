@@ -14,8 +14,13 @@ export type AnimeVideo = {
   id: number;
   filename: string;
   link: string;
+  path?: string;
   resolution?: number;
   nc?: boolean;
+  year: number | null;
+  releasePeriod?: string | null;
+  themeType: "OP" | "ED" | null;
+  themeNumber: number | null;
   [key: string]: unknown;
 };
 
@@ -42,6 +47,30 @@ const MAX_CACHE_AGE = 86_400_000;
 
 const AnimeCatalogContext = createContext<AnimeCatalogContextValue | null>(null);
 let catalogRequest: Promise<AnimeVideo[]> | null = null;
+
+function normalizeVideo(video: AnimeVideo) {
+  const yearSegment = typeof video.path === "string" ? video.path.split("/")[0] : "";
+  const themeMatch = video.filename.match(/(?:^|-)(OP|ED)(\d+)/i);
+  const parsedYear = /^\d{4}$/.test(yearSegment) ? Number(yearSegment) : null;
+  const decadeMatch = yearSegment.match(/^(\d{2})s$/);
+  const releasePeriod = parsedYear
+    ? String(parsedYear)
+    : decadeMatch
+      ? `19${decadeMatch[1]}s`
+      : null;
+
+  return {
+    ...video,
+    year: parsedYear,
+    releasePeriod,
+    themeType: themeMatch ? themeMatch[1].toUpperCase() as "OP" | "ED" : null,
+    themeNumber: themeMatch ? Number(themeMatch[2]) : null,
+  } satisfies AnimeVideo;
+}
+
+function normalizeCatalog(videos: AnimeVideo[]) {
+  return videos.map(normalizeVideo);
+}
 
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -105,7 +134,7 @@ function fetchCompleteCatalog() {
           throw new Error("The anime catalog response was invalid.");
         }
 
-        return data.videos;
+        return normalizeCatalog(data.videos);
       })
       .finally(() => {
         catalogRequest = null;
@@ -152,7 +181,7 @@ export default function AnimeCatalogProvider({ children }: { children: ReactNode
         if (!active) return;
 
         if (stored?.videos.length) {
-          setVideos(stored.videos);
+          setVideos(normalizeCatalog(stored.videos));
           setIsStoredLocally(true);
           setStatus("ready");
 
